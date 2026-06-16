@@ -1,20 +1,19 @@
-import psycopg2
-import psycopg2.extras
+import psycopg
 from config import DATABASE_URL
 import logging
 
 logger = logging.getLogger(__name__)
 
 def get_connection():
-    """Создаёт подключение к PostgreSQL"""
-    return psycopg2.connect(DATABASE_URL)
+    """Создаёт подключение к PostgreSQL с использованием psycopg (v3)"""
+    # psycopg v3 использует функцию connect напрямую
+    return psycopg.connect(DATABASE_URL)
 
 def init_database():
     """Инициализирует таблицы в PostgreSQL"""
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Общая таблица
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS shared_items (
             id SERIAL PRIMARY KEY,
@@ -51,10 +50,8 @@ def init_database():
     conn.close()
     logger.info("База данных PostgreSQL инициализирована")
 
-# ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
+# Функции для работы с базой данных также нужно обновить
 def add_to_shared(text, user_id, user_name):
-    """Добавить в общую базу"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -65,7 +62,6 @@ def add_to_shared(text, user_id, user_name):
     conn.close()
 
 def get_random_from_shared():
-    """Получить случайную запись из общей базы"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT text, added_by_name FROM shared_items ORDER BY RANDOM() LIMIT 1')
