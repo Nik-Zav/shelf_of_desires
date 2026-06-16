@@ -1,6 +1,8 @@
 import telebot
 import time
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 from config import BOT_TOKEN, USER_A_ID, USER_B_ID
@@ -53,6 +55,36 @@ def is_user_b(user_id):
 def is_authorized(user_id):
     return user_id in [USER_A_ID, USER_B_ID]
 
+# ========== HTTP СЕРВЕР ДЛЯ "БУДИЛЬНИКА" ==========
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    """Обработчик HTTP-запросов для health check"""
+    
+    def do_GET(self):
+        """Обрабатываем GET-запросы"""
+        if self.path == '/health' or self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+            logger.info("Health check ping received")
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        """Подавляем лишние логи HTTP-сервера"""
+        pass
+
+def run_health_server(port=10000):
+    """Запускает HTTP-сервер для health check"""
+    try:
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        logger.info(f"Health check server running on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        logger.error(f"Health check server error: {e}")
+
 # ========== КОМАНДЫ БОТА ==========
 
 @bot.message_handler(commands=['start'])
@@ -75,8 +107,8 @@ def start(message):
 
 📌 *Что можно делать:*
 • Добавлять идеи
-• Добавлять приятности для себя
-• Получать случайные идеи
+• Добавлять приятности
+• Получать случайные записи
 • Смотреть статистику
 
 👇 *Просто нажимай на кнопки!*
@@ -126,7 +158,7 @@ def add_shared_prompt(message):
     
     bot.send_message(
         message.chat.id,
-        "📝 *Введи идею:*\n\n(Напиши сообщение или нажми Отмена)",
+        "📝 *Введи текст для добавления идеи:*\n\n(Напиши сообщение или нажми Отмена)",
         parse_mode='Markdown',
         reply_markup=get_cancel_keyboard()
     )
@@ -140,7 +172,7 @@ def add_personal_prompt(message):
     
     bot.send_message(
         message.chat.id,
-        "🔐 *Введи текст для добавления приятности:*\n\n(Только ты сможешь добавлять сюда, другой пользователь сможет только читать)",
+        "🔐 *Введи текст для добавления приятность:*\n\n(Только ты сможешь добавлять сюда, другой пользователь сможет только читать)",
         parse_mode='Markdown',
         reply_markup=get_cancel_keyboard()
     )
@@ -185,7 +217,7 @@ def get_others_personal(message):
         text, added_by = result
         bot.send_message(
             message.chat.id,
-            f"🎲 *Случайная приятность для {owner}:*\n\n📝 {text}",
+            f"🎲 *Случайная запись из личной базы {owner}:*\n\n📝 {text}",
             parse_mode='Markdown',
             reply_markup=get_main_keyboard(message.from_user.id)
         )
@@ -206,9 +238,9 @@ def stats(message):
     stats_text = f"""
 📊 *Статистика базы данных*
 
-📁 *Общая база идей:* {shared_count} записей
-🔐 *Личная база приятностей Буба:* {personal_a_count} записей
-🔐 *Личная база приятностей Бесёнка:* {personal_b_count} записей
+📁 *Общая база:* {shared_count} записей
+🔐 *Личная база Буба:* {personal_a_count} записей
+🔐 *Личная база Бесёнка:* {personal_b_count} записей
 
 ━━━━━━━━━━━━━━━━
 💡 *Всего записей:* {shared_count + personal_a_count + personal_b_count}
@@ -234,7 +266,7 @@ def help_command(message):
 • Нажми "Добавить приятность" - только ты добавляешь
 
 🎲 *Получение записей:*
-• "Взять идею" - случайная из общего
+• "Взять идеб" - случайная из общего
 • "Сделать приятность" - случайная из базы напарника
 
 📊 *Статистика:* Показывает количество записей
@@ -288,7 +320,7 @@ def handle_text(message):
         add_to_shared(text, user_id, message.from_user.first_name)
         bot.send_message(
             message.chat.id,
-            f"✅ Добавлено в *базу идей*!\n\n📝 {text}",
+            f"✅ Добавлено в *общую базу идей*!\n\n📝 {text}",
             parse_mode='Markdown',
             reply_markup=get_main_keyboard(user_id)
         )
@@ -302,7 +334,7 @@ def handle_text(message):
         
         bot.send_message(
             message.chat.id,
-            f"✅ Добавлено в *твою базу приятностей*!\n\n📝 {text}",
+            f"✅ Добавлено в *твою личную базу приятностей*!\n\n📝 {text}",
             parse_mode='Markdown',
             reply_markup=get_main_keyboard(user_id)
         )
@@ -319,7 +351,11 @@ if __name__ == "__main__":
     logger.info(f"Бесёнок: {USER_B_ID}")
     logger.info("=" * 50)
     
-    # Запускаем бота
+    # Запускаем HTTP-сервер для health check в отдельном потоке
+    health_thread = threading.Thread(target=run_health_server, args=(10000,), daemon=True)
+    health_thread.start()
+    
+    # Запускаем бота (в основном потоке)
     while True:
         try:
             bot.infinity_polling(timeout=60, long_polling_timeout=30)
