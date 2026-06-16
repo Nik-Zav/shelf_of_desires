@@ -1,0 +1,15 @@
+# Виртуальное окружение
+venv/
+env/
+.env/
+
+# Файлы Python (кэш)
+__pycache__/
+*.pyc
+*.pyo
+
+# Файлы IDE (Visual Studio)
+.vs/
+.vscode/
+*.user
+*.suo
