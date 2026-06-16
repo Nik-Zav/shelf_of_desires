@@ -1,15 +1,27 @@
-# Виртуальное окружение
-venv/
-env/
-.env/
+# Переменные окружения с секретами
+.env
 
-# Файлы Python (кэш)
+# База данных (уже не нужна, но на всякий случай)
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+venv/
+env/
+.env/
+.venv/
 
-# Файлы IDE (Visual Studio)
-.vs/
+# IDE
+.idea/
 .vscode/
-*.user
-*.suo
+*.swp
+*.swo
+
+# Логи
+*.log

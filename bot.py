@@ -1,45 +1,34 @@
 import telebot
-import sqlite3
-import random
-import os
 import time
 import logging
-from datetime import datetime
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
+from config import BOT_TOKEN, USER_A_ID, USER_B_ID
+from database import (
+    init_database,
+    add_to_shared,
+    get_random_from_shared,
+    add_to_personal_a,
+    get_random_from_personal_a,
+    add_to_personal_b,
+    get_random_from_personal_b,
+    get_stats
+)
 
 # ========== НАСТРОЙКИ ==========
-TOKEN = "8846772231:AAF0As5ZvYgnThdWFQrJEwmk1xKhYsjI-vg"
-
-# Telegram ID двух пользователей (узнать у @userinfobot)
-USER_A_ID = 1895554663  # ID первого пользователя
-USER_B_ID = 814729344  # ID второго пользователя
-
-# Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 
 # ========== КЛАВИАТУРЫ ==========
 
 def get_main_keyboard(user_id):
-    """Главная клавиатура (разная для разных пользователей)"""
+    """Главная клавиатура"""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    
-    # Общие кнопки для всех
-    keyboard.row("📝 Добавить идею свидания", "🎲 Хочу свидание")
-    keyboard.row("🔐 Так можно меня порадовать", "🔓 Так могу порадовать я")
+    keyboard.row("📝 Добавить идею", "🎲 Взять идею")
+    keyboard.row("🔐 Добавить приятность", "🔓 Сделать приятность")
     keyboard.row("📊 Статистика", "❓ Помощь")
-    
-    return keyboard
-
-def get_add_keyboard():
-    """Клавиатура для выбора куда добавлять"""
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-    keyboard.row("📝 База свиданий")
-    keyboard.row("🔐 База моих радостей")
-    keyboard.row("◀️ Назад")
     return keyboard
 
 def get_cancel_keyboard():
@@ -48,139 +37,10 @@ def get_cancel_keyboard():
     keyboard.row("❌ Отмена")
     return keyboard
 
-def remove_keyboard(message):
-    """Убирает клавиатуру"""
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("◀️ Вернуться в меню")
-    return markup
-
-# ========== СОСТОЯНИЯ ДЛЯ ДИАЛОГОВ ==========
-user_states = {}  # Словарь для хранения состояния каждого пользователя
-
-# Состояния:
-WAITING_FOR_SHARED_TEXT = 1      # Ждём текст для общей базы
-WAITING_FOR_PERSONAL_TEXT = 2     # Ждём текст для личной базы
-
-# ========== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ==========
-DB_PATH = "shared_database.db"
-
-def init_database():
-    """Создаёт все таблицы, если их нет"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS shared_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            added_by INTEGER NOT NULL,
-            added_by_name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS personal_a_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            added_by INTEGER NOT NULL,
-            added_by_name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS personal_b_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            added_by INTEGER NOT NULL,
-            added_by_name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info("База данных инициализирована")
-
-# ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
-def add_to_shared(text, user_id, user_name):
-    """Добавить в общую базу"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO shared_items (text, added_by, added_by_name)
-        VALUES (?, ?, ?)
-    ''', (text, user_id, user_name))
-    conn.commit()
-    conn.close()
-
-def get_random_from_shared():
-    """Получить случайную запись из общей базы"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT text, added_by_name FROM shared_items ORDER BY RANDOM() LIMIT 1')
-    result = cursor.fetchone()
-    conn.close()
-    return result
-
-def add_to_personal_a(text, user_id, user_name):
-    """Добавить в личную базу А"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO personal_a_items (text, added_by, added_by_name)
-        VALUES (?, ?, ?)
-    ''', (text, user_id, user_name))
-    conn.commit()
-    conn.close()
-
-def get_random_from_personal_a():
-    """Получить случайную запись из личной базы А"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT text, added_by_name FROM personal_a_items ORDER BY RANDOM() LIMIT 1')
-    result = cursor.fetchone()
-    conn.close()
-    return result
-
-def add_to_personal_b(text, user_id, user_name):
-    """Добавить в личную базу Б"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO personal_b_items (text, added_by, added_by_name)
-        VALUES (?, ?, ?)
-    ''', (text, user_id, user_name))
-    conn.commit()
-    conn.close()
-
-def get_random_from_personal_b():
-    """Получить случайную запись из личной базы Б"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT text, added_by_name FROM personal_b_items ORDER BY RANDOM() LIMIT 1')
-    result = cursor.fetchone()
-    conn.close()
-    return result
-
-def get_stats():
-    """Получить статистику"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT COUNT(*) FROM shared_items')
-    shared_count = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM personal_a_items')
-    personal_a_count = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM personal_b_items')
-    personal_b_count = cursor.fetchone()[0]
-    
-    conn.close()
-    return shared_count, personal_a_count, personal_b_count
+# ========== СОСТОЯНИЯ ==========
+user_states = {}
+WAITING_FOR_SHARED_TEXT = 1
+WAITING_FOR_PERSONAL_TEXT = 2
 
 # ========== ПРОВЕРКА ДОСТУПА ==========
 
@@ -201,12 +61,11 @@ def start(message):
         bot.reply_to(message, "❌ Доступ запрещён. Этот бот только для двоих.")
         return
     
-    user_name = message.from_user.first_name
-    role = "Буб" if is_user_a(message.from_user.id) else "Бесёнок"
-    
-    # Очищаем состояние пользователя
     if message.from_user.id in user_states:
         del user_states[message.from_user.id]
+    
+    user_name = message.from_user.first_name
+    role = "Буб" if is_user_a(message.from_user.id) else "Бесёнок"
     
     welcome_text = f"""
 🤖 *Привет, {user_name}! ({role})*
@@ -215,9 +74,9 @@ def start(message):
 Используй кнопки ниже для управления.
 
 📌 *Что можно делать:*
-• Добавлять записи в общую базу свиданий
-• Добавлять записи в свою личную базу радостей
-• Получать случайные записи
+• Добавлять идеи
+• Добавлять приятности для себя
+• Получать случайные идеи
 • Смотреть статистику
 
 👇 *Просто нажимай на кнопки!*
@@ -235,7 +94,6 @@ def back_to_main(message):
     if not is_authorized(message.from_user.id):
         return
     
-    # Очищаем состояние
     if message.from_user.id in user_states:
         del user_states[message.from_user.id]
     
@@ -250,7 +108,6 @@ def cancel_action(message):
     if not is_authorized(message.from_user.id):
         return
     
-    # Очищаем состояние
     if message.from_user.id in user_states:
         del user_states[message.from_user.id]
     
@@ -260,37 +117,35 @@ def cancel_action(message):
         reply_markup=get_main_keyboard(message.from_user.id)
     )
 
-@bot.message_handler(func=lambda message: message.text == "📝 Добавить идею свидания")
+@bot.message_handler(func=lambda message: message.text == "📝 Добавить идею")
 def add_shared_prompt(message):
     if not is_authorized(message.from_user.id):
         return
     
-    # Устанавливаем состояние ожидания текста для общей базы
     user_states[message.from_user.id] = WAITING_FOR_SHARED_TEXT
     
     bot.send_message(
         message.chat.id,
-        "📝 *Введи текст для добавления в общую базу:*\n\n(Напиши сообщение или отправь /cancel для отмены)",
+        "📝 *Введи идею:*\n\n(Напиши сообщение или нажми Отмена)",
         parse_mode='Markdown',
         reply_markup=get_cancel_keyboard()
     )
 
-@bot.message_handler(func=lambda message: message.text == "🔐 Добавить радость для меня")
+@bot.message_handler(func=lambda message: message.text == "🔐 Добавить приятность")
 def add_personal_prompt(message):
     if not is_authorized(message.from_user.id):
         return
     
-    # Устанавливаем состояние ожидания текста для личной базы
     user_states[message.from_user.id] = WAITING_FOR_PERSONAL_TEXT
     
     bot.send_message(
         message.chat.id,
-        "🔐 *Введи текст для добавления в свою личную базу:*\n\n(Только ты сможешь добавлять сюда, другой пользователь сможет только читать)",
+        "🔐 *Введи текст для добавления приятности:*\n\n(Только ты сможешь добавлять сюда, другой пользователь сможет только читать)",
         parse_mode='Markdown',
         reply_markup=get_cancel_keyboard()
     )
 
-@bot.message_handler(func=lambda message: message.text == "🎲 Идея свидания")
+@bot.message_handler(func=lambda message: message.text == "🎲 Взять идею")
 def get_shared(message):
     if not is_authorized(message.from_user.id):
         return
@@ -301,18 +156,18 @@ def get_shared(message):
         text, added_by = result
         bot.send_message(
             message.chat.id,
-            f"🎲 *Случайная запись из базы свиданий:*\n\n📝 {text}\n\n👤 Добавил: {added_by}",
+            f"🎲 *Случайная идея:*\n\n📝 {text}\n\n👤 Добавил: {added_by}",
             parse_mode='Markdown',
             reply_markup=get_main_keyboard(message.from_user.id)
         )
     else:
         bot.send_message(
             message.chat.id,
-            "📭 Общая база пока пуста. Добавьте что-нибудь через кнопку \"📝 Добавить идею свидания\"",
+            "📭 Общая база пока пуста. Добавьте что-нибудь через кнопку \"📝 Добавить идею\"",
             reply_markup=get_main_keyboard(message.from_user.id)
         )
 
-@bot.message_handler(func=lambda message: message.text == "🔓 Взять вариант порадовать")
+@bot.message_handler(func=lambda message: message.text == "🔓 Сделать приятность")
 def get_others_personal(message):
     if not is_authorized(message.from_user.id):
         return
@@ -321,16 +176,16 @@ def get_others_personal(message):
     
     if is_user_a(user_id):
         result = get_random_from_personal_b()
-        owner = "Пользователя Б"
+        owner = "Бесёнок"
     else:
         result = get_random_from_personal_a()
-        owner = "Пользователя А"
+        owner = "Буб"
     
     if result:
         text, added_by = result
         bot.send_message(
             message.chat.id,
-            f"🎲 *Случайная запись из личной базы {owner}:*\n\n📝 {text}",
+            f"🎲 *Случайная приятность для {owner}:*\n\n📝 {text}",
             parse_mode='Markdown',
             reply_markup=get_main_keyboard(message.from_user.id)
         )
@@ -351,9 +206,9 @@ def stats(message):
     stats_text = f"""
 📊 *Статистика базы данных*
 
-📁 *База свидания:* {shared_count} записей
-🔐 *База радостей Буба:* {personal_a_count} записей
-🔐 *База радостей Бесёнка:* {personal_b_count} записей
+📁 *Общая база идей:* {shared_count} записей
+🔐 *Личная база приятностей Буба:* {personal_a_count} записей
+🔐 *Личная база приятностей Бесёнка:* {personal_b_count} записей
 
 ━━━━━━━━━━━━━━━━
 💡 *Всего записей:* {shared_count + personal_a_count + personal_b_count}
@@ -375,12 +230,12 @@ def help_command(message):
 ❓ *Как пользоваться ботом*
 
 📝 *Добавление записей:*
-• Нажми "Добавить идею свидания" - все увидят
-• Нажми "Добавить радость" - только ты добавляешь
+• Нажми "Добавить идею" - все увидят
+• Нажми "Добавить приятность" - только ты добавляешь
 
 🎲 *Получение записей:*
-• "Взять идею свидания" - случайная из общего
-• "Взять радость" - случайная из базы напарника
+• "Взять идею" - случайная из общего
+• "Сделать приятность" - случайная из базы напарника
 
 📊 *Статистика:* Показывает количество записей
 
@@ -400,52 +255,6 @@ def help_command(message):
         reply_markup=get_main_keyboard(message.from_user.id)
     )
 
-# Обработка текстовых сообщений (для добавления записей)
-@bot.message_handler(func=lambda message: message.chat.id in [USER_A_ID, USER_B_ID] and message.text and not message.text.startswith('/'))
-def handle_text(message):
-    user_id = message.from_user.id
-    
-    # Проверяем, есть ли пользователь в состоянии ожидания
-    if user_id not in user_states:
-        # Если нет состояния, просто игнорируем или показываем меню
-        bot.send_message(
-            message.chat.id,
-            "🤔 Используй кнопки меню для работы с ботом",
-            reply_markup=get_main_keyboard(user_id)
-        )
-        return
-    
-    state = user_states[user_id]
-    text = message.text.strip()
-    
-    if state == WAITING_FOR_SHARED_TEXT:
-        # Добавляем в общую базу
-        add_to_shared(text, user_id, message.from_user.first_name)
-        bot.send_message(
-            message.chat.id,
-            f"✅ Добавлено в *общую базу*!\n\n📝 {text}",
-            parse_mode='Markdown',
-            reply_markup=get_main_keyboard(user_id)
-        )
-        # Очищаем состояние
-        del user_states[user_id]
-        
-    elif state == WAITING_FOR_PERSONAL_TEXT:
-        # Добавляем в личную базу
-        if is_user_a(user_id):
-            add_to_personal_a(text, user_id, message.from_user.first_name)
-        else:
-            add_to_personal_b(text, user_id, message.from_user.first_name)
-        
-        bot.send_message(
-            message.chat.id,
-            f"✅ Добавлено в *твою личную базу*!\n\n📝 {text}\n\n(Другой пользователь сможет это получить через кнопку \"Взять радость\")",
-            parse_mode='Markdown',
-            reply_markup=get_main_keyboard(user_id)
-        )
-        # Очищаем состояние
-        del user_states[user_id]
-
 @bot.message_handler(commands=['cancel'])
 def cancel(message):
     if not is_authorized(message.from_user.id):
@@ -460,17 +269,57 @@ def cancel(message):
         reply_markup=get_main_keyboard(message.from_user.id)
     )
 
-# ========== ЗАПУСК С ОБРАБОТКОЙ ОШИБОК ==========
+@bot.message_handler(func=lambda message: message.chat.id in [USER_A_ID, USER_B_ID] and message.text and not message.text.startswith('/'))
+def handle_text(message):
+    user_id = message.from_user.id
+    
+    if user_id not in user_states:
+        bot.send_message(
+            message.chat.id,
+            "🤔 Используй кнопки меню для работы с ботом",
+            reply_markup=get_main_keyboard(user_id)
+        )
+        return
+    
+    state = user_states[user_id]
+    text = message.text.strip()
+    
+    if state == WAITING_FOR_SHARED_TEXT:
+        add_to_shared(text, user_id, message.from_user.first_name)
+        bot.send_message(
+            message.chat.id,
+            f"✅ Добавлено в *базу идей*!\n\n📝 {text}",
+            parse_mode='Markdown',
+            reply_markup=get_main_keyboard(user_id)
+        )
+        del user_states[user_id]
+        
+    elif state == WAITING_FOR_PERSONAL_TEXT:
+        if is_user_a(user_id):
+            add_to_personal_a(text, user_id, message.from_user.first_name)
+        else:
+            add_to_personal_b(text, user_id, message.from_user.first_name)
+        
+        bot.send_message(
+            message.chat.id,
+            f"✅ Добавлено в *твою базу приятностей*!\n\n📝 {text}",
+            parse_mode='Markdown',
+            reply_markup=get_main_keyboard(user_id)
+        )
+        del user_states[user_id]
+
+# ========== ЗАПУСК ==========
 if __name__ == "__main__":
+    # Инициализация базы данных
     init_database()
     
     logger.info("=" * 50)
-    logger.info("Бот запущен и работает!")
-    logger.info(f"Буб ID: {USER_A_ID}")
-    logger.info(f"Бесёнок ID: {USER_B_ID}")
+    logger.info("Бот запущен и работает с PostgreSQL!")
+    logger.info(f"Буб: {USER_A_ID}")
+    logger.info(f"Бесёнок: {USER_B_ID}")
     logger.info("=" * 50)
     
-    # Запускаем с автоматическим переподключением
+    # Запускаем бота
     while True:
         try:
             bot.infinity_polling(timeout=60, long_polling_timeout=30)
