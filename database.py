@@ -50,7 +50,6 @@ def init_database():
     conn.close()
     logger.info("База данных PostgreSQL инициализирована")
 
-# Функции для работы с базой данных также нужно обновить
 def add_to_shared(text, user_id, user_name):
     conn = get_connection()
     cursor = conn.cursor()
