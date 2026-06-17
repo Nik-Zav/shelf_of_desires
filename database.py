@@ -34,8 +34,7 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
-    # Личная таблица пользователя Б
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS personal_b_items (
             id SERIAL PRIMARY KEY,
