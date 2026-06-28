@@ -74,6 +74,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         """Подавляем лишние логи HTTP-сервера"""
         pass
 
+
 def run_health_server(port=10000):
     """Запускает HTTP-сервер для health check"""
     try:
