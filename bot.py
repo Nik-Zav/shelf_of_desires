@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ========== КЛАВИАТУРЫ ==========
 
 def get_main_keyboard(user_id):
     """Главная клавиатура"""
